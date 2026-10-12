@@ -1,0 +1,26 @@
+modLoader="javafml"
+loaderVersion="[47,)"
+license="All Rights Reserved"
+
+[[mods]]
+modId="nexiarandom"
+version="1.0.0"
+displayName="Nexia Ramdom"
+description='''Random prize roulette: /nexia random opens the pool screen, /nexia random <pool> [player] spins the wheel.'''
+authors="Nexia Studio"
+credits="By Luciusd"
+logoFile="logo.png"
+
+[[dependencies.nexiarandom]]
+modId="forge"
+mandatory=true
+versionRange="[47,)"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.nexiarandom]]
+modId="minecraft"
+mandatory=true
+versionRange="[1.20.1,1.21)"
+ordering="NONE"
+side="BOTH"

@@ -1,0 +1,30 @@
+name: Nexia auto build
+on:
+  workflow_dispatch:
+  push:
+    branches-ignore: [jar-output]
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: 8.8 }
+      - run: gradle build --no-daemon
+      - name: Publish jars to branch jar-output
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir /tmp/out
+          find . -path '*/build/libs/*.jar' -exec cp {} /tmp/out/ ';'
+          cd /tmp/out
+          git init -q -b jar-output
+          git config user.name github-actions
+          git config user.email actions@users.noreply.github.com
+          git add .
+          git commit -q -m 'Built jars'
+          git push -f "https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY.git" jar-output
