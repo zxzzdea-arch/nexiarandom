@@ -16,7 +16,6 @@ import net.minecraftforge.network.NetworkHooks;
 import net.minecraftforge.registries.ForgeRegistries;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
@@ -52,10 +51,17 @@ public final class Randoms {
         return id.toString();
     }
 
-    /** Pools built into the mod: { name, "item_id*amount*weight", ... } */
+    /** Pools the mod ships with: { name, "item_id*amount*weight", ... }. Copied into the world once; after that they are edited in game like any other pool. */
     private static final String[][] POOLS = {
         {"lucky", "minecraft:diamond*1*5", "minecraft:emerald*3*15", "minecraft:golden_apple*2*25", "minecraft:iron_ingot*8*55"}
     };
+
+    /** The saved pools of this world (the shipped pools are copied in the first time). */
+    private static PoolData data(MinecraftServer server) {
+        PoolData d = PoolData.get(server);
+        d.seed(POOLS);
+        return d;
+    }
 
     public record Entry(String item, int count, int weight) {}
 
@@ -99,31 +105,18 @@ public final class Randoms {
         return raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
     }
 
-    public static List<String> builtin(String name) {
-        for (String[] p : POOLS) {
-            if (p[0].equals(name)) return new ArrayList<>(Arrays.asList(p).subList(1, p.length));
-        }
-        return null;
-    }
-
     public static List<String> find(String name, PoolData data) {
-        List<String> b = builtin(name);
-        if (b != null) return b;
         PoolData.Entry e = data.getPool(name);
         return e == null ? null : new ArrayList<>(e.items);
     }
 
     public static Set<String> allNames(MinecraftServer server) {
-        Set<String> names = new LinkedHashSet<>();
-        for (String[] p : POOLS) names.add(p[0]);
-        names.addAll(PoolData.get(server).allPools().keySet());
-        return names;
+        return new LinkedHashSet<>(data(server).allPools().keySet());
     }
 
     public static List<Info> snapshot(MinecraftServer server) {
         List<Info> out = new ArrayList<>();
-        for (String[] p : POOLS) out.add(new Info(p[0], true, new ArrayList<>(Arrays.asList(p).subList(1, p.length))));
-        for (Map.Entry<String, PoolData.Entry> m : PoolData.get(server).allPools().entrySet()) {
+        for (Map.Entry<String, PoolData.Entry> m : data(server).allPools().entrySet()) {
             out.add(new Info(m.getKey(), false, new ArrayList<>(m.getValue().items)));
         }
         return out;
@@ -140,34 +133,42 @@ public final class Randoms {
     public static Result add(MinecraftServer s, String rawName, String itemRaw, int count, int weight) {
         String name = clean(rawName);
         if (!name.matches("[a-z0-9_.+-]{1,32}")) return fail("Invalid pool name. Use 1-32 characters: a-z, 0-9, _ . + -");
-        if (builtin(name) != null) return fail("Pool " + name + " is built into the mod and cannot be changed. Pick another name.");
+        if (name.equals("list") || name.equals("gui")) return fail("The names list and gui are reserved. Pick another pool name.");
         if (count < 1 || count > 2304) return fail("Amount must be from 1 to 2304.");
         if (weight < 1 || weight > 100000) return fail("Weight must be from 1 to 100000 (bigger = more likely).");
         String id = normalizeItem(itemRaw);
         if (id == null) return fail("Unknown item: " + (itemRaw == null ? "" : itemRaw.trim()));
-        int total = PoolData.get(s).addPoolItem(name, id + "*" + count + "*" + weight);
+        int total = data(s).addPoolItem(name, id + "*" + count + "*" + weight);
         return ok("Pool " + name + ": added " + count + "x " + id + " (weight " + weight + ", " + total + " item" + (total == 1 ? "" : "s") + ")");
+    }
+
+    public static Result edit(MinecraftServer s, String rawName, int index, String itemRaw, int count, int weight) {
+        String name = clean(rawName);
+        if (count < 1 || count > 2304) return fail("Amount must be from 1 to 2304.");
+        if (weight < 1 || weight > 100000) return fail("Weight must be from 1 to 100000 (bigger = more likely).");
+        String id = normalizeItem(itemRaw);
+        if (id == null) return fail("Unknown item: " + (itemRaw == null ? "" : itemRaw.trim()));
+        if (!data(s).setPoolItem(name, index, id + "*" + count + "*" + weight)) return fail("That item is not in pool " + name + ".");
+        return ok("Pool " + name + ": item " + (index + 1) + " is now " + count + "x " + id + " (weight " + weight + ")");
     }
 
     public static Result removeItem(MinecraftServer s, String rawName, int index) {
         String name = clean(rawName);
-        if (builtin(name) != null) return fail("Pool " + name + " is built into the mod; its items cannot be changed.");
-        int left = PoolData.get(s).removePoolItem(name, index);
+        int left = data(s).removePoolItem(name, index);
         if (left < 0) return fail("That item is not in pool " + name + ".");
         return ok(left == 0 ? "Removed the last item, so pool " + name + " was deleted." : "Removed an item from pool " + name + " (" + left + " left)");
     }
 
     public static Result removePool(MinecraftServer s, String rawName) {
         String name = clean(rawName);
-        if (builtin(name) != null) return fail("Pool " + name + " is built into the mod and cannot be removed.");
-        if (!PoolData.get(s).removePool(name)) return fail("No in-game pool named " + name + ".");
+        if (!data(s).removePool(name)) return fail("No pool named " + name + ".");
         return ok("Removed pool " + name);
     }
 
     /** Picks a winner for one player and starts the animation on their screen. */
     public static Result start(MinecraftServer server, ServerPlayer target, String rawName) {
         String name = clean(rawName);
-        List<String> raw = find(name, PoolData.get(server));
+        List<String> raw = find(name, data(server));
         if (raw == null) return fail("No random pool named " + name + ".");
         List<String> valid = new ArrayList<>();
         List<Entry> entries = new ArrayList<>();

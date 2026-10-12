@@ -22,7 +22,7 @@ import java.util.function.Supplier;
 public final class Net {
     private Net() {}
 
-    private static final String VERSION = "1";
+    private static final String VERSION = "2";
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(NexiarandomMod.MODID, "main"), () -> VERSION,
             NetworkRegistry.acceptMissingOr(VERSION), NetworkRegistry.acceptMissingOr(VERSION));
@@ -105,20 +105,22 @@ public final class Net {
         }
     }
 
-    /** Client to server: one pool action. op = add, rmitem, remove or spin. */
+    /** Client to server: one pool action. op = add, edit, rmitem, remove or spin. */
     public static final class PoolActionPacket {
         final String op;
         final String name;
         final String text;
         final int number;
         final int weight;
+        final int index;
 
-        public PoolActionPacket(String op, String name, String text, int number, int weight) {
+        public PoolActionPacket(String op, String name, String text, int number, int weight, int index) {
             this.op = op;
             this.name = name;
             this.text = text;
             this.number = number;
             this.weight = weight;
+            this.index = index;
         }
 
         static void encode(PoolActionPacket m, FriendlyByteBuf b) {
@@ -127,10 +129,11 @@ public final class Net {
             b.writeUtf(m.text, 128);
             b.writeVarInt(m.number);
             b.writeVarInt(m.weight);
+            b.writeVarInt(m.index);
         }
 
         static PoolActionPacket decode(FriendlyByteBuf b) {
-            return new PoolActionPacket(b.readUtf(16), b.readUtf(64), b.readUtf(128), b.readVarInt(), b.readVarInt());
+            return new PoolActionPacket(b.readUtf(16), b.readUtf(64), b.readUtf(128), b.readVarInt(), b.readVarInt(), b.readVarInt());
         }
 
         static void handle(PoolActionPacket m, Supplier<NetworkEvent.Context> ctx) {
@@ -141,6 +144,7 @@ public final class Net {
                 MinecraftServer s = p.getServer();
                 Randoms.Result r = switch (m.op) {
                     case "add" -> Randoms.add(s, m.name, m.text, m.number, m.weight);
+                    case "edit" -> Randoms.edit(s, m.name, m.index, m.text, m.number, m.weight);
                     case "rmitem" -> Randoms.removeItem(s, m.name, m.number);
                     case "remove" -> Randoms.removePool(s, m.name);
                     case "spin" -> {

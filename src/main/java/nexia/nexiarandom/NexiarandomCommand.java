@@ -30,6 +30,9 @@ public class NexiarandomCommand {
                 .then(Commands.literal("random")
                         .requires(src -> src.hasPermission(Math.min(Randoms.PERM, Randoms.ADMIN)))
                         .executes(ctx -> gui(ctx.getSource()))
+                        .then(Commands.literal("gui")
+                                .requires(src -> src.hasPermission(Randoms.ADMIN))
+                                .executes(ctx -> gui(ctx.getSource())))
                         .then(Commands.literal("list")
                                 .requires(src -> src.hasPermission(Randoms.ADMIN))
                                 .executes(ctx -> list(ctx.getSource())))
@@ -73,7 +76,7 @@ public class NexiarandomCommand {
         List<Randoms.Info> all = Randoms.snapshot(src.getServer());
         StringBuilder sb = new StringBuilder(all.isEmpty() ? "No pools." : all.size() + " pool(s):");
         for (Randoms.Info pl : all) {
-            sb.append("\n").append(pl.name).append(pl.builtin ? " [mod]: " : " [game]: ")
+            sb.append("\n").append(pl.name).append(": ")
                     .append(String.join(", ", pl.items).replace("*", "x "));
         }
         String text = sb.toString();
